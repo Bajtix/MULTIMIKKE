@@ -19,6 +19,7 @@ selector = None
 serverSocket = None
 running = False
 
+outputDevice = 0
 localStreams = {}
 
 
@@ -35,17 +36,19 @@ def Init():
         print(f"{i} : {dev['name']}")
 
     outputStream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True,
-                              frames_per_buffer=CHUNK)
+                              frames_per_buffer=CHUNK, output_device_index=outputDevice)
 
 
 def SetOutputDevice(index):
-    global outputStream
+    global outputStream, outputDevice
     try:
         outputStream.stop_stream()
         outputStream.close()
         outputStream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True,
                                   frames_per_buffer=CHUNK, output_device_index=index)
+        outputDevice=index
         outputStream.start_stream()
+        
         return True
     except OSError:
         print("Error: Output device could not be set")

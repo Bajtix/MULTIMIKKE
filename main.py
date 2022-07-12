@@ -59,6 +59,7 @@ class App(tk.Tk):
         self.amplifiers = {"main": 50}
 
         self.LoadData()
+        audiohost.SetOutputDevice(audiohost.outputDevice) #funny trick to make it safer
 
         # ICONS
 
@@ -518,7 +519,8 @@ class App(tk.Tk):
             "scene": self.sceneVar.get(),
             "take": self.takeVar.get(),
             "amplifiers": self.amplifiers,
-            "labels": audiohost.mikeLabels
+            "labels": audiohost.mikeLabels,
+            "output": audiohost.outputDevice
         }
         f = open("last.data", "w")
         f.write(json.dumps(d))
@@ -535,6 +537,7 @@ class App(tk.Tk):
         self.takeVar.set(d["take"])
         self.amplifiers = d["amplifiers"]
         audiohost.mikeLabels = d["labels"]
+        audiohost.outputDevice = d["output"]
 
 
 if __name__ == "__main__":
