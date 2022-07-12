@@ -11,7 +11,7 @@ class ComboDialog(tkinter.simpledialog.Dialog):
 
     def body(self, master):
         self.box = ttk.Combobox(
-            master, values=self.list, width=40)
+            master, values=self.list, width=50, state="readonly")
         self.box.pack()
         self.box.current(0)
         self.val = None

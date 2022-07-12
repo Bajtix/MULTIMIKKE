@@ -31,8 +31,16 @@ class App(tk.Tk):
 
         # configure the root window
         self.title('MULTIMIKKE')
-        self.geometry('550x300')
-        self.minsize = (550, 300)
+        self.geometry('650x350')
+        self.minsize = (650, 350)
+
+        # COLORS
+        self.defaultBg = "#009faa"
+        self.defaultFg = "#ffffff"
+        self.darkBg = "#007faa"
+        self.genericBg = "#dddddd"
+        self.activeColor = "#0e8428"
+        self.focusedColor = "#2de5ab"
 
         # VARIABLES
 
@@ -85,13 +93,13 @@ class App(tk.Tk):
             self)
         self.pnlServerControl.pack(side=BOTTOM, fill=tk.X)
 
-        self.btnStart = ttk.Button(
-            self.pnlServerControl, text='Wystartuj TCP', command=self.ToggleServer, width=15)
-        self.btnStart.pack(side=RIGHT)
-
         self.btnAdd = ttk.Button(
-            self.pnlServerControl, text='Dodaj Lokalny', command=self.AddLocalMike, width=15)
+            self.pnlServerControl, text='Dodaj Lokalny (A)', command=self.AddLocalMike, width=20, takefocus=0)
         self.btnAdd.pack(side=RIGHT)
+
+        self.btnStart = ttk.Button(
+            self.pnlServerControl, text='Wystartuj TCP (^A)', command=self.ToggleServer, width=20, takefocus=0)
+        self.btnStart.pack(side=RIGHT)
 
         self.lblConnected = ttk.Label(
             self.pnlServerControl, textvariable=self.mikesCount)
@@ -110,8 +118,12 @@ class App(tk.Tk):
         self.sldVolume.pack(side=LEFT, fill=tk.X)
 
         self.btnMute = ttk.Button(
-            self.pnlPreview, text="Wył. Podsłuch", command=lambda: self.SetListen("muted"), width=15)
+            self.pnlPreview, text="Wył. Podsłuch (M)", command=lambda: self.SetListen("muted"), width=20, takefocus=0)
         self.btnMute.pack(side=RIGHT)
+
+        self.btnSetOutput = ttk.Button(
+            self.pnlPreview, text="Wybierz wyjście (^M)", command=lambda: self.AskChangeOutput(), width=20, takefocus=0)
+        self.btnSetOutput.pack(side=RIGHT)
 
         # RECORDER
 
@@ -122,10 +134,10 @@ class App(tk.Tk):
         self._lbl.pack(side=LEFT)
 
         self.whlScene = ttk.Spinbox(
-            self.pnlRec, from_=1, to=999, width=3, textvariable=self.sceneVar, command=lambda: self.takeVar.set(0))
+            self.pnlRec, from_=1, to=999, width=3, textvariable=self.sceneVar, command=lambda: self.takeVar.set(1))
         self.whlScene.pack(side=LEFT)
 
-        self._lbl = ttk.Label(self.pnlRec, text="UJĘCIE ")
+        self._lbl = ttk.Label(self.pnlRec, text=" UJĘCIE ")
         self._lbl.pack(side=LEFT)
 
         self.whlTake = ttk.Spinbox(
@@ -136,17 +148,17 @@ class App(tk.Tk):
             self.pnlRec, textvariable=self.recTime)
         self.lblRecTime.pack(side=LEFT, fill=tk.X, padx=(5, 0))
 
-        self.btnRecord = ttk.Button(self.pnlRec, text="Nagraj",
-                                    command=self.Record, style="TButton", state=tk.NORMAL, width=15)
+        self.btnRecord = ttk.Button(self.pnlRec, text="Nagraj (R)",
+                                    command=self.Record, style="TButton", state=tk.NORMAL, width=20, takefocus=0)
         self.btnRecord.pack(side=RIGHT)
 
-        self.btnViewScene = ttk.Button(self.pnlRec, image=self.iconDir,
-                                       command=self.OpenFolder, style="TButton", state=tk.NORMAL, width=15)
-        self.btnViewScene.pack(side=RIGHT)
-
-        self.btnPlayScene = ttk.Button(self.pnlRec, image=self.iconCD,
-                                       command=self.OpenMixedRecording, style="TButton", state=tk.NORMAL, width=15)
+        self.btnPlayScene = ttk.Button(self.pnlRec, image=self.iconCD, text="O", compound=tk.LEFT,
+                                       command=self.OpenMixedRecording, style="TButton", state=tk.NORMAL, width=6, takefocus=0)
         self.btnPlayScene.pack(side=RIGHT)
+
+        self.btnViewScene = ttk.Button(self.pnlRec, image=self.iconDir, text="^O", compound=tk.LEFT,
+                                       command=self.OpenFolder, style="TButton", state=tk.NORMAL, width=6, takefocus=0)
+        self.btnViewScene.pack(side=RIGHT)
 
         # STYLE
 
@@ -156,25 +168,55 @@ class App(tk.Tk):
         self.style.configure("TFrame", padding=(
             10, 10, 10, 10), relief=tk.GROOVE, borderwidth=1, font=("Arial", 12), background="#009faa")
 
-        self.style.configure("Dark.TFrame", background="#007faa")
+        self.style.configure("Dark.TFrame", background=self.darkBg)
 
         self.style.configure(
-            "TProgressbar", background="#2a1fff", padding=(10, 10, 10, 10))
+            "TProgressbar", background=self.activeColor, padding=(10, 10, 10, 10))
         self.style.configure(
-            "TLabel", background="#009faa", foreground="#ffffff")
+            "TLabel", background=self.defaultBg, foreground=self.defaultFg)
         self.style.configure(
-            "TScale", background="#009faa", foreground="#ffffff")
+            "TScale", background=self.defaultBg, foreground=self.defaultFg)
+
+        self.style.map("TScale", troughcolor=[
+                       ("!focus", self.genericBg), ("focus", self.focusedColor)])
+
+        self.style.map("TLabel", foreground=[
+                       ("!focus", self.defaultFg), ("focus", self.focusedColor)])
+
+        self.style.map("TButton", background=[
+                       ("!focus", self.genericBg), ("focus", self.focusedColor)])
+
+        self.style.map("TSpinbox", fieldbackground=[
+                       ("!focus", self.defaultFg), ("focus", self.focusedColor)])
 
         self.style.configure("Active.TButton",
-                             background="green", foreground="white")
+                             background=self.activeColor, foreground=self.defaultFg)
+
+        self.style.map("Active.TButton", background=[])
+
+        # EVENTS AND SHORTCUTS
 
         self.bind_class("TScale", "<Button-3>", self.RightPoke)
+        self.bind_class("TScale", "<space>", self.RightPoke)
+        self.bind("<r>", lambda x: self.Record())
+        self.bind("<a>", lambda x: self.AddLocalMike())
+        self.bind("<Control-a>", lambda x: self.ToggleServer())
+        self.bind("<n>", lambda x: self.takeVar.set(self.takeVar.get() + 1))
+        self.bind("<Control-n>", lambda x: self.NewScene())
+        self.bind("<o>", lambda x: self.OpenMixedRecording())
+        self.bind("<Control-o>", lambda x: self.OpenFolder())
+        self.bind("<m>", lambda x: self.SetListen("muted"))
+        self.bind("<Control-m>", lambda x: self.AskChangeOutput())
 
         audiohost.cbOnMikeNew = self.OnNewMike
         audiohost.cbOnMikeDisconnect = self.OnMikeDisconnect
         audiohost.cbOnMikeData = self.OnMikeGotData
 
         self.protocol("WM_DELETE_WINDOW", self.OnClose)
+
+    def NewScene(self):
+        self.sceneVar.set(self.sceneVar.get() + 1)
+        self.takeVar.set(1)
 
     def UpdateStats(self):
         if(self.isRecording):
@@ -219,6 +261,20 @@ class App(tk.Tk):
                 return
             audiohost.mikeLabels[mikeId] = value
             audiohost.ReloadMic(mikeId)
+
+    def AskChangeOutput(self):
+        dc = audiohost.audio.get_device_count()
+        lis = []
+        for i in range(dc):
+            dev = audiohost.audio.get_device_info_by_index(i)
+            lis.append(f"{i} : {dev['name']}")
+
+        outId = customcompo.ComboDialog(
+            self, "Ustaw wyjście", lis).getresult()
+        if outId is None:
+            return
+        if not audiohost.SetOutputDevice(outId):
+            messagebox.showerror("Błąd", "Nie udało się połączyć wyjścia.")
 
     def SetListen(self, mikeId):
         if self.listen == mikeId:
@@ -273,12 +329,12 @@ class App(tk.Tk):
 
         mix.export(f"{folder}/audio_{self.sceneVar.get()}_mix.wav")
 
-        #self.takeVar.set(self.takeVar.get() + 1)
+        # self.takeVar.set(self.takeVar.get() + 1)
         self.whlScene.configure(state=tk.NORMAL)
         self.whlTake.configure(state=tk.NORMAL)
         self.bgImg.config(image=self.iconBg)
         self.btnRecord.configure(
-            text="Nagraj", style="TButton")
+            text="Nagraj (R)", style="TButton")
 
     def RecStart(self):
 
@@ -309,7 +365,7 @@ class App(tk.Tk):
         self.bgImg.configure(image=self.iconBgRec)
 
         self.btnRecord.configure(
-            text="Stop", style="Active.TButton")
+            text="Stop (R)", style="Active.TButton")
 
     def Record(self):
         if(len(audiohost.connectedMikes) == 0):
@@ -368,8 +424,10 @@ class App(tk.Tk):
         frm = ttk.Frame(self.pnlMikes)
         frm.pack(side=TOP, fill=tk.X)
 
-        lbl = ttk.Label(frm, text=audiohost.GetMikeName(mikeId), width=14)
+        lbl = ttk.Label(frm, text=audiohost.GetMikeName(
+            mikeId), width=14, takefocus=1)
         lbl.bind("<Button-3>", lambda e: self.UserChangeLabel(mikeId))
+        lbl.bind("<space>", lambda e: self.UserChangeLabel(mikeId))
         lbl.pack(side=LEFT)
 
         pgb = ttk.Progressbar(frm, orient=tk.HORIZONTAL)

@@ -10,7 +10,6 @@ CHANNELS = 1
 RATE = 44100
 CHUNK = 4096
 
-PLAYBACK_DEVICE = 36
 
 connectedMikes = {}
 mikeLabels = {}
@@ -39,6 +38,20 @@ def Init():
                               frames_per_buffer=CHUNK)
 
 
+def SetOutputDevice(index):
+    global outputStream
+    try:
+        outputStream.stop_stream()
+        outputStream.close()
+        outputStream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True,
+                                  frames_per_buffer=CHUNK, output_device_index=index)
+        outputStream.start_stream()
+        return True
+    except OSError:
+        print("Error: Output device could not be set")
+        return False
+
+
 def Stop():
     global running, connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
     mikes = list(connectedMikes.keys())
@@ -46,6 +59,8 @@ def Stop():
         print("Stopping server, removing mike ", w)
         if not "L" in w:
             Disconnect(w)
+        else:
+            RemoveLocalStream(w)
     running = False
 
 
