@@ -59,7 +59,8 @@ class App(tk.Tk):
         self.amplifiers = {"main": 50}
 
         self.LoadData()
-        audiohost.SetOutputDevice(audiohost.outputDevice) #funny trick to make it safer
+        # funny trick to make it safer
+        audiohost.SetOutputDevice(audiohost.outputDevice)
 
         # ICONS
 
@@ -398,14 +399,13 @@ class App(tk.Tk):
                     self.RecStop(False)
                     messagebox.showwarning(
                         "Uwaga", "Wyłączono nagrywanie!")
-                audiohost.Shutdown()
-                self.destroy()
+                audiohost.StopServer()
                 serverThread.join()
                 serverThread = None
-        else:
-            self.destroy()
 
+        audiohost.Shutdown()
         self.SaveData()
+        self.destroy()
         print("Прощай на веки, последняя любовь")
 
     def SetMikeCount(self, count):
@@ -465,7 +465,6 @@ class App(tk.Tk):
         m.destroy()
 
     def OnMikeGotData(self, mikeId, data):
-        
 
         data = audioop.mul(
             data, audiohost.audio.get_sample_size(audiohost.FORMAT), self.amplifiers[mikeId]/100.0)
@@ -484,15 +483,13 @@ class App(tk.Tk):
         try:
             bar = self.mikePanels[mikeId].winfo_children()[1]
             bar.configure(value=R*0.1)
-        except KeyError:
+        except Exception:
             print("oops! mirophone no longer is here but we tried to update it")
 
-        try:
-            if mikeId == self.listen:
-                audiohost.outputStream.write(audioop.mul(
-                    data, audiohost.audio.get_sample_size(audiohost.FORMAT), self.amplifiers["main"]/100.0))
-        except Exception:
-            print("oh no! cannot transmit audio! anyways.")
+        # if mikeId == self.listen: TODO: WE NEED TO MAKE IT INTO AN ARRAY
+        ndata = audioop.mul(data, audiohost.audio.get_sample_size(
+            audiohost.FORMAT), self.amplifiers["main"]/100.0)
+        audiohost.BufferMikeData(mikeId, ndata)
 
     def AddLocalMike(self):
         dc = audiohost.audio.get_device_count()
@@ -514,12 +511,12 @@ class App(tk.Tk):
 
         global serverThread
         if serverThread is None:
-            serverThread = threading.Thread(target=audiohost.Run)
+            serverThread = threading.Thread(target=audiohost.StartServer)
             serverThread.start()
             self.btnStart.config(text="Zatrzymaj TCP",
                                  style="Active.TButton")
         else:
-            audiohost.Stop()
+            audiohost.StopServer()
             self.btnStart.config(text="Wystartuj TCP", style="TButton")
             serverThread = None
 

@@ -2,8 +2,12 @@
 from glob import glob
 import socket
 import selectors
+import threading
 import types
+from numpy import full
 import pyaudio
+import time
+import audioop
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -13,11 +17,18 @@ CHUNK = 4096
 
 connectedMikes = {}
 mikeLabels = {}
+
+playbackBuffers = {}
+
 audio = None
 outputStream = None
 selector = None
 serverSocket = None
-running = False
+serverRunning = False
+
+generalRunning = True
+
+__playbackThread = None
 
 outputDevice = 0
 localStreams = {}
@@ -29,7 +40,7 @@ def cbOnMikeData(mikeId, data): return None
 
 
 def Init():
-    global audio, outputStream
+    global audio, outputStream, generalRunning, __playbackThread
     audio = pyaudio.PyAudio()
     for i in range(0, audio.get_device_count()):
         dev = audio.get_device_info_by_index(i)
@@ -37,6 +48,10 @@ def Init():
 
     outputStream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True,
                               frames_per_buffer=CHUNK, output_device_index=outputDevice)
+
+    generalRunning = True
+    __playbackThread = threading.Thread(target=__Playback)
+    __playbackThread.start()
 
 
 def SetOutputDevice(index):
@@ -46,47 +61,50 @@ def SetOutputDevice(index):
         outputStream.close()
         outputStream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True,
                                   frames_per_buffer=CHUNK, output_device_index=index)
-        outputDevice=index
+        outputDevice = index
         outputStream.start_stream()
-        
+
         return True
     except OSError:
         print("Error: Output device could not be set")
         return False
 
 
-def Stop():
-    global running, connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
+def StopServer():
+    global serverRunning, connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
     mikes = list(connectedMikes.keys())
     for w in mikes:
-        print("Stopping server, removing mike ", w)
-        if not "L" in w:
+        if connectedMikes[w] is not None:
             Disconnect(w)
-        else:
-            RemoveLocalStream(w)
-    running = False
+    serverRunning = False
 
 
 # Shuts the whole thing down
 def Shutdown():
-    global connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream
-    Stop()
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream, generalRunning
+
+    StopServer()
     for w in connectedMikes.keys():
         RemoveMike(w)
+    serverRunning = False
+    generalRunning = False
+
     outputStream.close()
     audio.terminate()
+
     connectedMikes = {}
+    print("Shutting down...")
 
 
-def __Stop():
+def __StopServer():
 
-    global connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
     selector.close()
 
     print("MIKKE TCP SERVER STOPPING...")
     serverSocket.close()
     serverSocket = None
-    running = False
+    serverRunning = False
     print("MIKKE TCP SERVER STOPPED!")
 
 
@@ -116,8 +134,8 @@ def Disconnect(mikeId):
     cbOnMikeDisconnect(mikeId)
 
 
-def Run():
-    global connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
+def StartServer():
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData
 
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     serverSocket.bind(("", 4200))
@@ -130,12 +148,12 @@ def Run():
 
     selector.register(serverSocket, selectors.EVENT_READ, data=None)
 
-    running = True
+    serverRunning = True
 
     def AcceptConnection(sck):
-        global running, cbOnMikeNew
+        global serverRunning, cbOnMikeNew
 
-        if not running:
+        if not serverRunning:
             return
 
         global connectedMikes
@@ -160,9 +178,9 @@ def Run():
         selector.register(mikeSocket, events, data=data)
 
     def ReadConnection(k, m):
-        global running
+        global serverRunning
 
-        if not running:
+        if not serverRunning:
             return
 
         sock = k.fileobj
@@ -179,7 +197,7 @@ def Run():
                 Disconnect(mikeId)
 
     try:
-        while running:
+        while serverRunning:
             events = selector.select(timeout=1)
 
             for key, mask in events:
@@ -189,11 +207,11 @@ def Run():
                     ReadConnection(key, mask)
     except KeyboardInterrupt:
         pass
-    __Stop()
+    __StopServer()
 
 
 def CreateLocalStream(dev):
-    global connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream
     connectedMikes[f"L{dev}"] = None
 
     def LocalStreamCallback(in_data, frame_count, time_info, status):
@@ -218,7 +236,7 @@ def RemoveLocalStream(mikeId):
 
 
 def RemoveMike(mikeId):
-    global connectedMikes, audio, outputStream, selector, serverSocket, running, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream
     if not mikeId in connectedMikes:
         return
     if connectedMikes[mikeId] is not None:
@@ -227,5 +245,37 @@ def RemoveMike(mikeId):
         RemoveLocalStream(mikeId)
 
 
+def BufferMikeData(mikeId, data):
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream, playbackBuffers
+    if not mikeId in playbackBuffers.keys():
+        playbackBuffers[mikeId] = []
+        return
+
+    if playbackBuffers[mikeId] is None:
+        playbackBuffers[mikeId] = []
+
+    dArr = []
+    for d in data:
+        dArr.append(d)
+    playbackBuffers[mikeId] = playbackBuffers[mikeId] + dArr
+
+
+def __Playback():
+    global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream, currentFrameBuffer, generalRunning, playbackBuffers
+    while generalRunning:
+        keys = list(playbackBuffers.keys())
+        for mikeId in keys:
+            if playbackBuffers[mikeId] is None:
+                continue
+
+            if len(playbackBuffers[mikeId]) > 8192:
+                frameData = playbackBuffers[mikeId][:4096]
+                playbackBuffers[mikeId] = playbackBuffers[mikeId][4096:]
+                bs = bytes(frameData)
+                outputStream.write(bs)
+
+        time.sleep(1/RATE * CHUNK / 2)
+
+
 if __name__ == "__main__":
-    Run()
+    StartServer()
