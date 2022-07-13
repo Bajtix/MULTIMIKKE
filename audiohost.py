@@ -142,6 +142,14 @@ def Run():
         mikeSocket, address = serverSocket.accept()
         mikeSocket.setblocking(False)
         print("New connection from ", address)
+
+        try:
+            print(connectedMikes[GetIdFromSocket(mikeSocket)])
+            print("The microphone is NOT new...")
+            cbOnMikeDisconnect(GetIdFromSocket(mikeSocket))
+        except KeyError:
+            print("The microphone is new...")
+
         connectedMikes[GetIdFromSocket(mikeSocket)] = mikeSocket
 
         cbOnMikeNew(GetIdFromSocket(mikeSocket))

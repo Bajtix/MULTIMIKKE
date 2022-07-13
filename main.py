@@ -412,6 +412,7 @@ class App(tk.Tk):
         self.mikesCount.set("Połączone mikrofony: " + str(count))
 
     def OnNewMike(self, mikeId):
+
         if self.isRecording:
             self.RecStop(False)
             messagebox.showwarning(
@@ -464,6 +465,8 @@ class App(tk.Tk):
         m.destroy()
 
     def OnMikeGotData(self, mikeId, data):
+        
+
         data = audioop.mul(
             data, audiohost.audio.get_sample_size(audiohost.FORMAT), self.amplifiers[mikeId]/100.0)
 
@@ -478,12 +481,18 @@ class App(tk.Tk):
 
         rms = audioop.rms(data, 1)
         R = 10**(rms/20)
-        bar = self.mikePanels[mikeId].winfo_children()[1]
-        bar.configure(value=R*0.1)
+        try:
+            bar = self.mikePanels[mikeId].winfo_children()[1]
+            bar.configure(value=R*0.1)
+        except KeyError:
+            print("oops! mirophone no longer is here but we tried to update it")
 
-        if mikeId == self.listen:
-            audiohost.outputStream.write(audioop.mul(
-                data, audiohost.audio.get_sample_size(audiohost.FORMAT), self.amplifiers["main"]/100.0))
+        try:
+            if mikeId == self.listen:
+                audiohost.outputStream.write(audioop.mul(
+                    data, audiohost.audio.get_sample_size(audiohost.FORMAT), self.amplifiers["main"]/100.0))
+        except Exception:
+            print("oh no! cannot transmit audio! anyways.")
 
     def AddLocalMike(self):
         dc = audiohost.audio.get_device_count()
