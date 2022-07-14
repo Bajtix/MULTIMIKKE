@@ -1,3 +1,4 @@
+from email.mime import audio
 import subprocess
 import tkinter as tk
 import threading
@@ -46,7 +47,6 @@ class App(tk.Tk):
 
         self.mikesCount = StringVar(self, "Witamy w MULTIMIKKE!")
         self.mikePanels = {}
-        self.listen = "muted"
 
         self.sceneVar = tk.IntVar(self, value=1)
         self.takeVar = tk.IntVar(self, value=1)
@@ -56,7 +56,6 @@ class App(tk.Tk):
         self.isRecording = False
         self.recStartTime = datetime.datetime.now()
         self.lastCheck = datetime.datetime.now()
-        self.amplifiers = {"main": 50}
 
         self.LoadData()
         # funny trick to make it safer
@@ -116,7 +115,7 @@ class App(tk.Tk):
         self._lbl.pack(side=LEFT)
 
         self.sldVolume = ttk.Scale(
-            self.pnlPreview, from_=0, to=300, orient=tk.HORIZONTAL, value=self.amplifiers["main"], command=lambda v: self.SetAmplify("main", v), length=170)
+            self.pnlPreview, from_=0, to=300, orient=tk.HORIZONTAL, value=audiohost.playbackVolumes["main"], command=lambda v: self.SetAmplify("main", v), length=170)
         self.sldVolume.pack(side=LEFT, fill=tk.X)
 
         self.btnMute = ttk.Button(
@@ -252,7 +251,7 @@ class App(tk.Tk):
         return f"recordings/S{self.sceneVar.get()}_{self.takeVar.get()}"
 
     def SetAmplify(self, mikeId, value):
-        self.amplifiers[mikeId] = float(value)
+        audiohost.playbackVolumes[mikeId] = float(value)
 
     def UserChangeLabel(self, mikeId):
         value = simpledialog.askstring(
@@ -279,20 +278,21 @@ class App(tk.Tk):
             messagebox.showerror("Błąd", "Nie udało się połączyć wyjścia.")
 
     def SetListen(self, mikeId):
-        if self.listen == mikeId:
-            self.listen = ""
+        if mikeId == "muted":
+            for i in audiohost.playbackEnabled.keys():
+                audiohost.playbackEnabled[i] = False
         else:
-            print("Changed listen to " + mikeId)
-            self.listen = mikeId
+            audiohost.playbackEnabled[mikeId] = not audiohost.playbackEnabled[mikeId]
 
-        itms = list(self.mikePanels.items())
-        for panel in itms:
-            if panel[0] != self.listen:
-                panel[1].winfo_children()[2].configure(
-                    text="Słuchaj", style="TButton")
-            else:
-                panel[1].winfo_children()[2].configure(
+        keys = list(self.mikePanels.keys())
+        for mike in keys:
+            panel = self.mikePanels[mike]
+            if audiohost.playbackEnabled[mike]:
+                panel.winfo_children()[2].configure(
                     text="Słuchanie", style="Active.TButton")
+            else:
+                panel.winfo_children()[2].configure(
+                    text="Słuchaj", style="TButton")
 
     def RemoveMic(self, mikeId):
         audiohost.RemoveMike(mikeId)
@@ -388,7 +388,7 @@ class App(tk.Tk):
         val = simpledialog.askfloat(
             "Edytuj", f"Podaj wartość <{mn}-{mx}>", minvalue=mn, maxvalue=mx, initialvalue=event.widget.get())
         if val is not None:
-            event.widget.configure(value=val)
+            event.widget.set(val)
 
     def OnClose(self):
         global serverThread
@@ -399,28 +399,24 @@ class App(tk.Tk):
                     self.RecStop(False)
                     messagebox.showwarning(
                         "Uwaga", "Wyłączono nagrywanie!")
-                audiohost.StopServer()
-                serverThread.join()
-                serverThread = None
+            else:
+                return False
 
         audiohost.Shutdown()
         self.SaveData()
         self.destroy()
+        serverThread.join()
+        serverThread = None
         print("Прощай на веки, последняя любовь")
 
     def SetMikeCount(self, count):
         self.mikesCount.set("Połączone mikrofony: " + str(count))
 
     def OnNewMike(self, mikeId):
-
         if self.isRecording:
             self.RecStop(False)
             messagebox.showwarning(
                 "Uwaga", "Podłączono nowy mikrofon więc przerwano nagrywanie.")
-
-        v = self.listen
-        self.SetListen(self.listen)
-        self.SetListen(v)
 
         self.SetMikeCount(len(audiohost.connectedMikes))
         frm = ttk.Frame(self.pnlMikes)
@@ -448,10 +444,7 @@ class App(tk.Tk):
                         command=lambda v: self.SetAmplify(mikeId, v), value=50, length=150)
         sld.pack(side=RIGHT, padx=(5, 0))
 
-        if not mikeId in self.amplifiers.keys():
-            self.amplifiers[mikeId] = 50
-        else:
-            sld.set(self.amplifiers[mikeId])
+        sld.set(audiohost.playbackVolumes[mikeId])
         self.mikePanels[mikeId] = frm
 
     def OnMikeDisconnect(self, mikeId):
@@ -465,9 +458,6 @@ class App(tk.Tk):
         m.destroy()
 
     def OnMikeGotData(self, mikeId, data):
-
-        data = audioop.mul(
-            data, audiohost.audio.get_sample_size(audiohost.FORMAT), self.amplifiers[mikeId]/100.0)
 
         # a sort of a main loop architecture
         delta = datetime.datetime.now() - self.lastCheck
@@ -485,11 +475,6 @@ class App(tk.Tk):
             bar.configure(value=R*0.1)
         except Exception:
             print("oops! mirophone no longer is here but we tried to update it")
-
-        # if mikeId == self.listen: TODO: WE NEED TO MAKE IT INTO AN ARRAY
-        ndata = audioop.mul(data, audiohost.audio.get_sample_size(
-            audiohost.FORMAT), self.amplifiers["main"]/100.0)
-        audiohost.BufferMikeData(mikeId, ndata)
 
     def AddLocalMike(self):
         dc = audiohost.audio.get_device_count()
@@ -513,18 +498,18 @@ class App(tk.Tk):
         if serverThread is None:
             serverThread = threading.Thread(target=audiohost.StartServer)
             serverThread.start()
-            self.btnStart.config(text="Zatrzymaj TCP",
+            self.btnStart.config(text="Zatrzymaj TCP (^A)",
                                  style="Active.TButton")
         else:
             audiohost.StopServer()
-            self.btnStart.config(text="Wystartuj TCP", style="TButton")
+            self.btnStart.config(text="Wystartuj TCP (^A)", style="TButton")
             serverThread = None
 
     def SaveData(self):
         d = {
             "scene": self.sceneVar.get(),
             "take": self.takeVar.get(),
-            "amplifiers": self.amplifiers,
+            "amplifiers": audiohost.playbackVolumes,
             "labels": audiohost.mikeLabels,
             "output": audiohost.outputDevice
         }
@@ -541,7 +526,7 @@ class App(tk.Tk):
         f.close()
         self.sceneVar.set(d["scene"])
         self.takeVar.set(d["take"])
-        self.amplifiers = d["amplifiers"]
+        audiohost.playbackVolumes = d["amplifiers"]
         audiohost.mikeLabels = d["labels"]
         audiohost.outputDevice = d["output"]
 
