@@ -13,7 +13,7 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
 CHUNK = 4096
-PLAYBACK_CHUNK = 4096
+PLAYBACK_CHUNK = 8192
 
 
 connectedMikes = {}
@@ -191,14 +191,15 @@ def StartServer():
         mikeSocket.setblocking(False)
         print("New connection from ", address)
 
+        mikeId = GetIdFromSocket(mikeSocket)
+
         try:
-            print(connectedMikes[GetIdFromSocket(mikeSocket)])
+            print(connectedMikes[mikeId])
             print("The microphone is NOT new...")
-            cbOnMikeDisconnect(GetIdFromSocket(mikeSocket))
+            cbOnMikeDisconnect(mikeId)
         except KeyError:
             print("The microphone is new...")
 
-        mikeId = GetIdFromSocket(mikeSocket)
         connectedMikes[mikeId] = mikeSocket
 
         if mikeId not in playbackVolumes:

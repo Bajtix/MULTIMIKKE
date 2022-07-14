@@ -126,6 +126,10 @@ class App(tk.Tk):
             self.pnlPreview, text="Wybierz wyjście (^M)", command=lambda: self.AskChangeOutput(), width=20, takefocus=0)
         self.btnSetOutput.pack(side=RIGHT)
 
+        self.btnSyncPlayback = ttk.Button(
+            self.pnlPreview, text="Sync", command=lambda: audiohost.BufferClear(), width=5)
+        self.btnSyncPlayback.pack(side=RIGHT)
+
         # RECORDER
 
         self.pnlRec = ttk.Frame(self)
@@ -134,15 +138,17 @@ class App(tk.Tk):
         self._lbl = ttk.Label(self.pnlRec, text="SCENA ")
         self._lbl.pack(side=LEFT)
 
+        numberValidator = (self.register(util.validate_spinbox), '%d', '%P')
+
         self.whlScene = ttk.Spinbox(
-            self.pnlRec, from_=1, to=999, width=3, textvariable=self.sceneVar, command=lambda: self.takeVar.set(1))
+            self.pnlRec, from_=1, to=999, width=3, textvariable=self.sceneVar, command=lambda: self.takeVar.set(1), validate="key", validatecommand=numberValidator)
         self.whlScene.pack(side=LEFT)
 
         self._lbl = ttk.Label(self.pnlRec, text=" UJĘCIE ")
         self._lbl.pack(side=LEFT)
 
         self.whlTake = ttk.Spinbox(
-            self.pnlRec, from_=1, to=999, width=3, textvariable=self.takeVar)
+            self.pnlRec, from_=1, to=999, width=3, textvariable=self.takeVar, validate="key", validatecommand=numberValidator)
         self.whlTake.pack(side=LEFT)
 
         self.lblRecTime = ttk.Label(
@@ -405,8 +411,6 @@ class App(tk.Tk):
         audiohost.Shutdown()
         self.SaveData()
         self.destroy()
-        serverThread.join()
-        serverThread = None
         print("Прощай на веки, последняя любовь")
 
     def SetMikeCount(self, count):
