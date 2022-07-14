@@ -264,6 +264,7 @@ def __Playback():
     global connectedMikes, audio, outputStream, selector, serverSocket, serverRunning, cbOnMikeNew, cbOnMikeDisconnect, cbOnMikeData, localStream, currentFrameBuffer, generalRunning, playbackBuffers
     while generalRunning:
         keys = list(playbackBuffers.keys())
+        mix = None
         for mikeId in keys:
             if playbackBuffers[mikeId] is None:
                 continue
@@ -272,8 +273,12 @@ def __Playback():
                 frameData = playbackBuffers[mikeId][:4096]
                 playbackBuffers[mikeId] = playbackBuffers[mikeId][4096:]
                 bs = bytes(frameData)
-                outputStream.write(bs)
-
+                if mix is None:
+                    mix = bs
+                else:
+                    mix = audioop.add(mix, bs, audio.get_sample_size(FORMAT))
+        if mix is not None:
+            outputStream.write(mix)
         time.sleep(1/RATE * CHUNK / 2)
 
 
