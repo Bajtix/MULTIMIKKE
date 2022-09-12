@@ -32,8 +32,8 @@ class App(tk.Tk):
 
         # configure the root window
         self.title('MULTIMIKKE')
-        self.geometry('650x350')
-        self.minsize = (650, 350)
+        self.geometry('800x500')
+        self.minsize = (800, 500)
 
         # COLORS
         self.defaultBg = "#009faa"
@@ -50,6 +50,7 @@ class App(tk.Tk):
 
         self.sceneVar = tk.IntVar(self, value=1)
         self.takeVar = tk.IntVar(self, value=1)
+        self.partVar = tk.IntVar(self, value=1)
         self.recTime = tk.StringVar(self, value="Powodzenia z nagraniem!")
 
         self.recBuffer = {}
@@ -143,6 +144,13 @@ class App(tk.Tk):
         self.whlScene = ttk.Spinbox(
             self.pnlRec, from_=1, to=999, width=3, textvariable=self.sceneVar, command=lambda: self.takeVar.set(1), validate="key", validatecommand=numberValidator)
         self.whlScene.pack(side=LEFT)
+
+        self._lbl = ttk.Label(self.pnlRec, text=" CZĘŚĆ ")
+        self._lbl.pack(side=LEFT)
+
+        self.whlPart = ttk.Spinbox(
+            self.pnlRec, from_=1, to=50, width=3, textvariable=self.partVar, validate="key", validatecommand=numberValidator)
+        self.whlPart.pack(side=LEFT)
 
         self._lbl = ttk.Label(self.pnlRec, text=" UJĘCIE ")
         self._lbl.pack(side=LEFT)
@@ -254,7 +262,7 @@ class App(tk.Tk):
                 "Brak folderu", "To ujęcie jeszcze nie zostało nagrane.")
 
     def GetFolder(self):
-        return f"recordings/S{self.sceneVar.get()}_{self.takeVar.get()}"
+        return f"recordings/S{self.sceneVar.get()}_PART{self.partVar.get()}_{self.takeVar.get()}"
 
     def SetAmplify(self, mikeId, value):
         audiohost.playbackVolumes[mikeId] = float(value)
