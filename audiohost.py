@@ -229,12 +229,14 @@ def StartServer():
 
         if mask & selectors.EVENT_READ:
             receivedData = sock.recv(CHUNK)
+            
             if receivedData:
-                # data.outb += receivedData
-                receivedData = audioop.mul(
-                    receivedData, audio.get_sample_size(FORMAT), (float(playbackVolumes[mikeId])*float(playbackVolumes["main"]))/10000.0)
-
-                BufferMikeData(mikeId, receivedData)
+                try:
+                    receivedData = audioop.mul(
+                        receivedData, audio.get_sample_size(FORMAT), (float(playbackVolumes[mikeId])*float(playbackVolumes["main"]))/10000.0)
+                    BufferMikeData(mikeId, receivedData)
+                except:
+                    print("Ouch! Received data was fucked up")
                 cbOnMikeData(mikeId, receivedData)
             else:
                 Disconnect(mikeId)
@@ -260,10 +262,13 @@ def CreateLocalStream(dev):
 
     def LocalStreamCallback(in_data, frame_count, time_info, status):
         cbOnMikeData(mikeId, in_data)
-        receivedData = audioop.mul(
-            in_data, audio.get_sample_size(FORMAT), (float(playbackVolumes[mikeId])*float(playbackVolumes["main"]))/10000.0)
-
-        BufferMikeData(mikeId, receivedData)
+        try:
+            receivedData = audioop.mul(
+                in_data, audio.get_sample_size(FORMAT), (float(playbackVolumes[mikeId])*float(playbackVolumes["main"]))/10000.0)
+            BufferMikeData(mikeId, receivedData)
+        except:
+            print("Ouch! Local data was fucked up!")
+        
         return (None, pyaudio.paContinue)
     try:
         localStreams[mikeId] = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True,
